@@ -1,0 +1,15 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  T3x\T3Corescan\:
+    resource: '../Classes/*'
+
+  T3x\T3Corescan\Command\ScanCommand:
+    tags:
+      - name: 'console.command'
+        command: 't3x:extensionscanner:scan'
+        description: 'Run the TYPO3 Core Extension Scanner against custom extensions on the CLI (JSON-capable).'
+        schedulable: false

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    bootstrap="Tests/Functional/bootstrap.php"
+    cacheDirectory=".phpunit.cache"
+    colors="true"
+    failOnWarning="true"
+    failOnRisky="true"
+    beStrictAboutTestsThatDoNotTestAnything="true"
+    beStrictAboutOutputDuringTests="true"
+    displayDetailsOnTestsThatTriggerWarnings="true"
+    displayDetailsOnTestsThatTriggerNotices="true"
+>
+    <testsuites>
+        <testsuite name="Functional">
+            <directory>Tests/Functional</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>Classes</directory>
+        </include>
+    </source>
+    <php>
+        <env name="TYPO3_CONTEXT" value="Testing"/>
+    </php>
+</phpunit>

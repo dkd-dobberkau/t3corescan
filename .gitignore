@@ -1,0 +1,10 @@
+/vendor/
+/public/
+/.Build/
+/.idea/
+/.phpunit.cache/
+/.phpunit.result.cache
+/.playwright-mcp/
+/composer.lock
+/.ddev/
+/.ddev-test/
