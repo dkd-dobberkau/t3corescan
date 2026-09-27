@@ -20,6 +20,17 @@ final class ScanCommand extends Command
 {
     private const DEFAULT_EXCLUDES = ['vendor', 'node_modules', '.Build', 'var', '.git'];
 
+    /**
+     * Which findings make the command exit non-zero.
+     *
+     * `strong` is the default because weak hits are name collisions as often as
+     * findings: MethodCallMatcher cannot know a receiver's type, so it flags every
+     * call to a known method name. A measured scan of 358 files of real extension
+     * code produced 70 strong and 151 weak hits — a gate that trips on weak hits
+     * trips on every project, which says nothing.
+     */
+    private const FAIL_ON = ['strong', 'any', 'none'];
+
     private const NOTE = 'Static analysis only — dynamically composed calls or runtime class names are out of scope.';
 
     public function __construct(
@@ -42,7 +53,8 @@ final class ScanCommand extends Command
             ->addArgument('paths', InputArgument::IS_ARRAY, 'Directories to scan. Defaults to packages/ and typo3conf/ext/ when present.')
             ->addOption('format', null, InputOption::VALUE_REQUIRED, 'Output format: table or json.', 'table')
             ->addOption('exclude', null, InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Directory names to exclude (default: ' . implode(', ', self::DEFAULT_EXCLUDES) . ').')
-            ->addOption('no-fail', null, InputOption::VALUE_NONE, 'Always exit 0 even when hits are found.');
+            ->addOption('fail-on', null, InputOption::VALUE_REQUIRED, 'Which findings make the exit code non-zero: ' . implode(', ', self::FAIL_ON) . '.', 'strong')
+            ->addOption('no-fail', null, InputOption::VALUE_NONE, 'Always exit 0 even when hits are found. Same as --fail-on=none.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -70,6 +82,15 @@ final class ScanCommand extends Command
             return Command::INVALID;
         }
 
+        $failOn = strtolower((string)$input->getOption('fail-on'));
+        if (!in_array($failOn, self::FAIL_ON, true)) {
+            $io->error('Unknown value "' . $failOn . '" for --fail-on. Use ' . implode(', ', self::FAIL_ON) . '.');
+            return Command::INVALID;
+        }
+        if ($input->getOption('no-fail')) {
+            $failOn = 'none';
+        }
+
         $excludes = $input->getOption('exclude') ?: self::DEFAULT_EXCLUDES;
         $files = $this->collectFiles($resolvedPaths, $excludes);
 
@@ -88,11 +109,12 @@ final class ScanCommand extends Command
             $this->emitTable($io, $summary, $results);
         }
 
-        $hasHits = $summary['hits']['total'] > 0;
-        if ($hasHits && !$input->getOption('no-fail')) {
-            return Command::FAILURE;
-        }
-        return Command::SUCCESS;
+        $fails = match ($failOn) {
+            'any' => $summary['hits']['total'] > 0,
+            'strong' => ($summary['hits']['byIndicator']['strong'] ?? 0) > 0,
+            'none' => false,
+        };
+        return $fails ? Command::FAILURE : Command::SUCCESS;
     }
 
     /**

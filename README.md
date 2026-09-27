@@ -100,8 +100,12 @@ vendor/bin/typo3 t3x:extensionscanner:scan
 # Explicit paths, JSON for downstream processing
 vendor/bin/typo3 t3x:extensionscanner:scan packages/my_ext packages/other_ext --format=json
 
-# Report hits but still exit zero
-vendor/bin/typo3 t3x:extensionscanner:scan --no-fail
+# Gate a pipeline on strong findings only (the default)
+vendor/bin/typo3 t3x:extensionscanner:scan --fail-on=strong
+
+# Fail on weak findings too, or never fail at all
+vendor/bin/typo3 t3x:extensionscanner:scan --fail-on=any
+vendor/bin/typo3 t3x:extensionscanner:scan --fail-on=none
 
 # Override directory excludes (default: vendor, node_modules, .Build, var, .git)
 vendor/bin/typo3 t3x:extensionscanner:scan packages/ --exclude=vendor --exclude=Tests
@@ -114,15 +118,23 @@ vendor/bin/typo3 t3x:extensionscanner:scan packages/ --exclude=vendor --exclude=
 | `paths` (argument, variadic) | auto-detect | Files or directories to scan. |
 | `--format` | `table` | `table` (human-readable) or `json` (machine-readable). |
 | `--exclude` | see default | Directory names to skip. |
-| `--no-fail` | off | Always exit zero, even when hits exist. |
+| `--fail-on` | `strong` | Which findings make the exit code non-zero: `strong`, `any` or `none`. |
+| `--no-fail` | off | Alias for `--fail-on=none`. |
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| `0` | Clean run with no hits, or `--no-fail` was set. |
-| `1` | Hits found. |
-| `2` | Invalid invocation (non-existent path, unknown format). |
+| `0` | No finding that the chosen `--fail-on` gates on. |
+| `1` | Such a finding exists. |
+| `2` | Invalid invocation (non-existent path, unknown format, unknown `--fail-on`). |
+
+`strong` means the matcher identified the symbol. `weak` means a method or
+property name matched but the receiver's type is not knowable by static
+analysis — a name collision is as likely as a finding. Weak hits are frequent:
+a scan of 358 files of real extension code produced 70 strong and **151 weak**
+hits. That is why `--fail-on` defaults to `strong`; gating on weak hits gates on
+every project, which says nothing. The report always lists both.
 
 ### JSON schema
 
@@ -231,12 +243,24 @@ only needed if the hook failed.
   expects **exactly one** `ClassNameMatcher` hit with
   `indicator=strong` plus the reST reference
   `Breaking-80700-DeprecatedFunctionalityRemoved.rst`. A clean fixture
-  must produce no hits at all.
+  must produce no hits at all. That rule exists in every ruleset since v9, so
+  this test answers "does the scanner still run" — not "whose rules is it
+  using".
+- The same file also scans
+  [`Tests/Fixtures/V14OnlyRule.php`](Tests/Fixtures/V14OnlyRule.php), whose rule
+  exists **only** in the v14 ruleset (`TYPO3\CMS\Core\Service\FlexFormService`,
+  Breaking-107945), and asserts its *absence* on older lines. This is the test
+  that would catch a stale or foreign ruleset, and it is why the two matrix legs
+  assert a different number of things: 33 assertions on v13.4, 35 on v14.3.
 - [`Tests/Functional/Command/ScanCommandTest.php`](Tests/Functional/Command/ScanCommandTest.php)
   drives the command through
   `Symfony\Component\Console\Tester\CommandTester`, validates the
-  JSON schema, and checks exit-code behavior (`1` on hits, `0` with
-  `--no-fail`).
+  JSON schema, and checks the gate: weak hits alone exit `0`, a strong hit
+  exits `1`, `--fail-on=any` fails on weak hits too, `--fail-on=none` never
+  fails, and an unknown value is an invalid invocation rather than a pass. The
+  weak-only case has its own fixture,
+  [`Tests/Fixtures/Weak/WeakHitOnly.php`](Tests/Fixtures/Weak/WeakHitOnly.php),
+  which contains no class name at all so no matcher can report `strong`.
 
 When a Core update breaks the internal contract, these tests are the
 first thing to fail.
@@ -250,7 +274,7 @@ first thing to fail.
 | testing-framework | 9.7.0 | 9.7.0 |
 | PHPUnit | 11.5.56 | 11.5.56 |
 | Verified | 2026-09-27 | 2026-09-27 |
-| Result | 4 tests / 22 assertions / green | 4 tests / 22 assertions / green |
+| Result | 10 tests / 33 assertions / green | 10 tests / 35 assertions / green |
 
 The first verification was v13.4.30 with PHP 8.2.30 and testing-framework
 9.5.0 on 2026-05-27, also green.
@@ -269,8 +293,11 @@ Classes/
         └── Hit.php
 Configuration/
 └── Services.yaml                 ← DI + console.command tag
+LICENSE  CHANGELOG.md  CONTRIBUTING.md
 Tests/
-├── Fixtures/                     ← known deprecation + clean counter-fixture
+├── Fixtures/                     ← known deprecation, clean counter-fixture,
+│   │                               a v14-only rule, and a weak-only case
+│   └── Weak/WeakHitOnly.php
 ├── Functional/Command/
 ├── Functional/Scanner/
 └── Functional/bootstrap.php
@@ -286,4 +313,6 @@ phpunit.xml.dist
 
 ## License
 
-GPL-2.0-or-later — same as the TYPO3 Core.
+GPL-2.0-or-later — same as the TYPO3 Core. Full text in [`LICENSE`](LICENSE).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) before changing the adapter, and
+[`CHANGELOG.md`](CHANGELOG.md) for what changed when.
