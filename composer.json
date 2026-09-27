@@ -5,8 +5,8 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": "^8.2",
-        "typo3/cms-core": "^13.4",
-        "typo3/cms-install": "^13.4",
+        "typo3/cms-core": "^13.4 || ^14.3",
+        "typo3/cms-install": "^13.4 || ^14.3",
         "nikic/php-parser": "^5.0",
         "symfony/console": "^7.0",
         "symfony/finder": "^7.0"
@@ -27,7 +27,11 @@
     },
     "extra": {
         "typo3/cms": {
-            "extension-key": "t3corescan"
+            "extension-key": "t3corescan",
+            "version": "0.1.0",
+            "Package": {
+                "providesPackages": {}
+            }
         }
     },
     "config": {

@@ -17,11 +17,12 @@ backend.
 
 The Extension Scanner ships in the TYPO3 Core as a backend module only.
 There is no official `extensionscanner:scan` CLI command. If you need
-the scan to be scriptable, you have two options: the established
-third-party package `michielroos/typo3scan`, or a small command that
-talks to the Core's own scanner directly. This repo is the second
-option, deliberately bound to the installed Core version so the match
-list always tracks the Core that's actually installed.
+the scan to be scriptable, you can reach for a standalone reimplementation
+such as `michielroos/typo3scan`, for `netresearch/nr-extension-scanner-cli`
+(same approach as this one, published later and independently), or write a
+small command that talks to the Core's own scanner directly. This repo is
+the last option, deliberately bound to the installed Core version so the
+match list always tracks the Core that's actually installed.
 
 ## ⚠ Deliberate use of `@internal` Core classes
 
@@ -32,15 +33,25 @@ Core releases without a deprecation path. This is a deliberate
 trade-off — it's the price of reusing the Core's own match
 definitions.
 
+**Measured across one major, 2026-09-27.** Between TYPO3 v13.4.35 and
+v14.3.7 the `ExtensionScanner` directory kept an identical file list and
+changed in **no** public signature; the 227 diff lines are internal
+hardening (`isset($node->name->name)` became
+`$node->name instanceof Identifier`). The 23-entry matcher registry is
+identical in both lines, and both resolve the parser to
+`PhpVersion::fromComponents(8, 2)`. The risk is real, but for this major
+it did not materialise — no line of `Classes/` needed a change to support
+v14.
+
 All references to these internal classes are concentrated in **one**
 file: [`Classes/Scanner/ScannerAdapter.php`](Classes/Scanner/ScannerAdapter.php).
 When a Core update breaks the contract, that's the single place to
 touch.
 
 The matcher registry in the adapter mirrors
-`vendor/typo3/cms-install/Classes/Controller/UpgradeController.php`
-from the **TYPO3 v13.4** line. Verified against TYPO3 **v13.4.30**
-(2026-05-27).
+`vendor/typo3/cms-install/Classes/Controller/UpgradeController.php`.
+Its 23 entries are the same in the **v13.4** and **v14.3** lines, checked
+entry by entry against both.
 
 The functional test
 [`Tests/Functional/Scanner/ScannerAdapterTest.php`](Tests/Functional/Scanner/ScannerAdapterTest.php)
@@ -60,7 +71,7 @@ contract.
 
 ## Installation
 
-In the `composer.json` of your TYPO3 13.4 project:
+In the `composer.json` of your TYPO3 13.4 or 14.3 project:
 
 ```json
 {
@@ -178,15 +189,34 @@ The annotations used by the Core's backend module are honored:
 
 ## Development & tests
 
-Prerequisite: DDEV. The functional tests boot a complete TYPO3 13.4
-instance via `typo3/testing-framework` and run on SQLite — no
-dedicated database setup needed.
+The functional tests boot a complete TYPO3 instance via
+`typo3/testing-framework` and run on SQLite — no database server, and no
+DDEV either:
+
+```bash
+composer install
+typo3DatabaseDriver=pdo_sqlite php -d memory_limit=1G vendor/bin/phpunit -c phpunit.xml.dist
+```
+
+Without the raised memory limit PHP dies inside TYPO3's `TcaSchemaFactory`.
+DDEV still works if you prefer it:
 
 ```bash
 ddev start
 ddev composer install
 ddev test
 ```
+
+To switch the line under test, pin the Core packages for one run:
+
+```bash
+composer update --with typo3/cms-core:^14.3 --with typo3/cms-install:^14.3
+```
+
+`.github/workflows/tests.yml` runs exactly that as a matrix over v13.4 and
+v14.3 against PHP 8.2 and 8.4, plus once a month on a schedule — so a
+broken `@internal` contract shows up even when nobody touches this
+repository.
 
 On the first `ddev start` the `post-start` hook runs `composer install`
 automatically. The repeated `ddev composer install` is harmless and
@@ -213,14 +243,17 @@ first thing to fail.
 
 ### Verified state
 
-| | |
-|---|---|
-| TYPO3 Core | v13.4.30 |
-| PHP | 8.2.30 |
-| testing-framework | 9.5.0 |
-| PHPUnit | 11.5.55 |
-| Verified | 2026-05-27 |
-| Result | 4 tests / 22 assertions / green |
+| | | |
+|---|---|---|
+| TYPO3 Core | v13.4.35 | v14.3.7 |
+| PHP | 8.4.26 | 8.4.26 |
+| testing-framework | 9.7.0 | 9.7.0 |
+| PHPUnit | 11.5.56 | 11.5.56 |
+| Verified | 2026-09-27 | 2026-09-27 |
+| Result | 4 tests / 22 assertions / green | 4 tests / 22 assertions / green |
+
+The first verification was v13.4.30 with PHP 8.2.30 and testing-framework
+9.5.0 on 2026-05-27, also green.
 
 ## Repository layout
 
@@ -241,6 +274,8 @@ Tests/
 ├── Functional/Command/
 ├── Functional/Scanner/
 └── Functional/bootstrap.php
+.github/workflows/
+└── tests.yml                     ← v13.4 / v14.3 matrix, monthly schedule
 .ddev/
 ├── commands/web/test             ← `ddev test` helper, configures SQLite
 └── config.yaml                   ← PHP 8.2 + MariaDB 10.11
