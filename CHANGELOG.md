@@ -38,6 +38,10 @@ All notable changes to this project are documented here. The format follows
   weak hits. Failing on weak hits means failing on every project, which made the
   exit code useless as a gate. Use `--fail-on=any` for the previous behaviour.
 - `--no-fail` is kept as an alias for `--fail-on=none`.
+- **A parse or scan error now fails the command**, for `--fail-on=strong` and
+  `--fail-on=any`. Before, a file the scanner could not read passed the gate
+  without having been looked at, the same way the backend module counts such a
+  file as checked. `--fail-on=none` still exits 0.
 
 ### Fixed
 

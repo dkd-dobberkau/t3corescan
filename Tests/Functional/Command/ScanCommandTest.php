@@ -176,4 +176,31 @@ final class ScanCommandTest extends FunctionalTestCase
             self::assertStringContainsString('propertyNoNodeHas', (string)$result['scanError']);
         }
     }
+
+    public function testScanErrorFailsTheDefaultGate(): void
+    {
+        $adapter = new ScannerAdapter([['class' => WarningMatcher::class, 'configurationArray' => []]]);
+        $tester = new CommandTester(new ScanCommand($adapter, new PathResolver()));
+
+        $exitCode = $tester->execute([
+            'paths' => [dirname(__DIR__, 2) . '/Fixtures/CleanFile.php'],
+            '--format' => 'json',
+        ]);
+
+        self::assertSame(1, $exitCode, 'an unscanned file may hide a strong hit, so the gate must not pass');
+    }
+
+    public function testScanErrorPassesWithFailOnNone(): void
+    {
+        $adapter = new ScannerAdapter([['class' => WarningMatcher::class, 'configurationArray' => []]]);
+        $tester = new CommandTester(new ScanCommand($adapter, new PathResolver()));
+
+        $exitCode = $tester->execute([
+            'paths' => [dirname(__DIR__, 2) . '/Fixtures/CleanFile.php'],
+            '--format' => 'json',
+            '--fail-on' => 'none',
+        ]);
+
+        self::assertSame(0, $exitCode);
+    }
 }

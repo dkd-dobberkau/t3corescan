@@ -53,7 +53,7 @@ final class ScanCommand extends Command
             ->addArgument('paths', InputArgument::IS_ARRAY, 'Directories to scan. Defaults to packages/ and typo3conf/ext/ when present.')
             ->addOption('format', null, InputOption::VALUE_REQUIRED, 'Output format: table or json.', 'table')
             ->addOption('exclude', null, InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Directory names to exclude (default: ' . implode(', ', self::DEFAULT_EXCLUDES) . ').')
-            ->addOption('fail-on', null, InputOption::VALUE_REQUIRED, 'Which findings make the exit code non-zero: ' . implode(', ', self::FAIL_ON) . '.', 'strong')
+            ->addOption('fail-on', null, InputOption::VALUE_REQUIRED, 'Which findings make the exit code non-zero: ' . implode(', ', self::FAIL_ON) . '. Files that could not be parsed or scanned fail every value except none.', 'strong')
             ->addOption('no-fail', null, InputOption::VALUE_NONE, 'Always exit 0 even when hits are found. Same as --fail-on=none.');
     }
 
@@ -109,9 +109,13 @@ final class ScanCommand extends Command
             $this->emitTable($io, $summary, $results);
         }
 
+        // A file that could not be parsed or scanned may hide any finding, so a
+        // gate that passes it would pass without having looked. Only
+        // `--fail-on=none` lets an incomplete scan exit 0.
+        $incomplete = $summary['filesWithParseErrors'] + $summary['filesWithScanErrors'] > 0;
         $fails = match ($failOn) {
-            'any' => $summary['hits']['total'] > 0,
-            'strong' => ($summary['hits']['byIndicator']['strong'] ?? 0) > 0,
+            'any' => $incomplete || $summary['hits']['total'] > 0,
+            'strong' => $incomplete || ($summary['hits']['byIndicator']['strong'] ?? 0) > 0,
             'none' => false,
         };
         return $fails ? Command::FAILURE : Command::SUCCESS;

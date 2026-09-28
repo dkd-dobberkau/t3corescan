@@ -118,7 +118,7 @@ vendor/bin/typo3 t3x:extensionscanner:scan packages/ --exclude=vendor --exclude=
 | `paths` (argument, variadic) | auto-detect | Files or directories to scan. |
 | `--format` | `table` | `table` (human-readable) or `json` (machine-readable). |
 | `--exclude` | see default | Directory names to skip. |
-| `--fail-on` | `strong` | Which findings make the exit code non-zero: `strong`, `any` or `none`. |
+| `--fail-on` | `strong` | Which findings make the exit code non-zero: `strong`, `any` or `none`. A parse or scan error fails `strong` and `any`. |
 | `--no-fail` | off | Alias for `--fail-on=none`. |
 
 ### Exit codes
@@ -126,7 +126,7 @@ vendor/bin/typo3 t3x:extensionscanner:scan packages/ --exclude=vendor --exclude=
 | Code | Meaning |
 |---|---|
 | `0` | No finding that the chosen `--fail-on` gates on. |
-| `1` | Such a finding exists. |
+| `1` | Such a finding exists, or a file could not be parsed or scanned (except with `--fail-on=none`). |
 | `2` | Invalid invocation (non-existent path, unknown format, unknown `--fail-on`). |
 
 `strong` means the matcher identified the symbol. `weak` means a method or
@@ -259,7 +259,7 @@ only needed if the hook failed.
   exists **only** in the v14 ruleset (`TYPO3\CMS\Core\Service\FlexFormService`,
   Breaking-107945), and asserts its *absence* on older lines. This is the test
   that would catch a stale or foreign ruleset, and it is why the two matrix legs
-  assert a different number of things: 45 assertions on v13.4, 47 on v14.3.
+  assert a different number of things: 47 assertions on v13.4, 49 on v14.3.
 - [`Tests/Functional/Command/ScanCommandTest.php`](Tests/Functional/Command/ScanCommandTest.php)
   drives the command through
   `Symfony\Component\Console\Tester\CommandTester`, validates the
