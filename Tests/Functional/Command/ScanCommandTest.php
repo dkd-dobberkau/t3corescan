@@ -7,6 +7,7 @@ namespace T3x\T3Corescan\Tests\Functional\Command;
 use T3x\T3Corescan\Command\ScanCommand;
 use T3x\T3Corescan\Scanner\PathResolver;
 use T3x\T3Corescan\Scanner\ScannerAdapter;
+use T3x\T3Corescan\Tests\Functional\Fixtures\WarningMatcher;
 use Symfony\Component\Console\Tester\CommandTester;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
@@ -149,5 +150,30 @@ final class ScanCommandTest extends FunctionalTestCase
 
         self::assertSame(2, $exitCode, 'an unknown gate is an invalid invocation, not a pass');
         self::assertStringContainsString('sometimes', $tester->getDisplay());
+    }
+
+    // --- a failing matcher costs one file, not the run ---------------------
+
+    public function testScanErrorInOneFileDoesNotStopTheRun(): void
+    {
+        $adapter = new ScannerAdapter([['class' => WarningMatcher::class, 'configurationArray' => []]]);
+        $tester = new CommandTester(new ScanCommand($adapter, new PathResolver()));
+
+        $tester->execute([
+            'paths' => [
+                dirname(__DIR__, 2) . '/Fixtures/CleanFile.php',
+                dirname(__DIR__, 2) . '/Fixtures/DeprecatedClassUsage.php',
+            ],
+            '--format' => 'json',
+            '--no-fail' => true,
+        ]);
+
+        $decoded = json_decode($tester->getDisplay(), true, 32, JSON_THROW_ON_ERROR);
+        self::assertSame(2, $decoded['summary']['filesScanned']);
+        self::assertSame(2, $decoded['summary']['filesWithScanErrors']);
+        self::assertCount(2, $decoded['results'], 'files with a scan error must appear in the results');
+        foreach ($decoded['results'] as $result) {
+            self::assertStringContainsString('propertyNoNodeHas', (string)$result['scanError']);
+        }
     }
 }

@@ -145,6 +145,7 @@ every project, which says nothing. The report always lists both.
     "filesWithHits": 3,
     "filesIgnored": 0,
     "filesWithParseErrors": 0,
+    "filesWithScanErrors": 0,
     "hits": {
       "total": 5,
       "byIndicator": { "strong": 3, "weak": 2 }
@@ -161,6 +162,7 @@ every project, which says nothing. The report always lists both.
       "effectiveCodeLines": 84,
       "ignoredLines": 0,
       "parseError": null,
+      "scanError": null,
       "hits": [
         {
           "file": "packages/my_ext/Classes/Foo.php",
@@ -187,8 +189,14 @@ Each hit contains:
   identifier verbatim, exactly the way the backend module shows it
 - `restFiles` — references to the matching reST changelog files
 
-`results` lists only files that have hits or a parse error. The
+`results` lists only files that have hits, a parse error or a scan error. The
 counters in `summary` cover all scanned files.
+
+A scan error means a Core matcher failed on the file, for example
+`Undefined property: PhpParser\Node\VariadicPlaceholder::$unpack` on a static
+first-class callable in TYPO3 v14.3 ([Forge #110828](https://forge.typo3.org/issues/110828)). The run goes on
+with the next file. A file with a scan error reports no hits, because the hits
+collected before the failure are incomplete.
 
 ### Ignore annotations
 
@@ -251,7 +259,7 @@ only needed if the hook failed.
   exists **only** in the v14 ruleset (`TYPO3\CMS\Core\Service\FlexFormService`,
   Breaking-107945), and asserts its *absence* on older lines. This is the test
   that would catch a stale or foreign ruleset, and it is why the two matrix legs
-  assert a different number of things: 33 assertions on v13.4, 35 on v14.3.
+  assert a different number of things: 45 assertions on v13.4, 47 on v14.3.
 - [`Tests/Functional/Command/ScanCommandTest.php`](Tests/Functional/Command/ScanCommandTest.php)
   drives the command through
   `Symfony\Component\Console\Tester\CommandTester`, validates the

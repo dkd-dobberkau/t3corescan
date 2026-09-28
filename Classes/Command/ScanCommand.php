@@ -169,7 +169,7 @@ final class ScanCommand extends Command
     /**
      * @param list<FileScanResult> $results
      * @param list<string> $scannedPaths
-     * @return array{filesScanned:int,filesWithHits:int,filesIgnored:int,filesWithParseErrors:int,hits:array{total:int,byIndicator:array<string,int>},scannedPaths:list<string>,projectRoot:string,note:string}
+     * @return array{filesScanned:int,filesWithHits:int,filesIgnored:int,filesWithParseErrors:int,filesWithScanErrors:int,hits:array{total:int,byIndicator:array<string,int>},scannedPaths:list<string>,projectRoot:string,note:string}
      */
     private function buildSummary(array $results, array $scannedPaths, string $projectRoot): array
     {
@@ -178,10 +178,15 @@ final class ScanCommand extends Command
         $filesWithHits = 0;
         $filesIgnored = 0;
         $filesWithParseErrors = 0;
+        $filesWithScanErrors = 0;
 
         foreach ($results as $result) {
             if ($result->parseError !== null) {
                 $filesWithParseErrors++;
+                continue;
+            }
+            if ($result->scanError !== null) {
+                $filesWithScanErrors++;
                 continue;
             }
             if ($result->isFileIgnored) {
@@ -202,6 +207,7 @@ final class ScanCommand extends Command
             'filesWithHits' => $filesWithHits,
             'filesIgnored' => $filesIgnored,
             'filesWithParseErrors' => $filesWithParseErrors,
+            'filesWithScanErrors' => $filesWithScanErrors,
             'hits' => [
                 'total' => $totalHits,
                 'byIndicator' => $byIndicator,
@@ -231,9 +237,10 @@ final class ScanCommand extends Command
                     'effectiveCodeLines' => $r->effectiveCodeLines,
                     'ignoredLines' => $r->ignoredLines,
                     'parseError' => $r->parseError,
+                    'scanError' => $r->scanError,
                     'hits' => array_map(static fn ($h) => $h->toArray(), $r->hits),
                 ],
-                array_values(array_filter($results, static fn (FileScanResult $r): bool => $r->hits !== [] || $r->parseError !== null)),
+                array_values(array_filter($results, static fn (FileScanResult $r): bool => !$r->isClean())),
             )),
         ];
         $output->writeln(json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
@@ -252,6 +259,10 @@ final class ScanCommand extends Command
         foreach ($results as $result) {
             if ($result->parseError !== null) {
                 $rows[] = [$result->relativeFilePath, '-', 'parse-error', '-', $result->parseError, ''];
+                continue;
+            }
+            if ($result->scanError !== null) {
+                $rows[] = [$result->relativeFilePath, '-', 'scan-error', '-', $result->scanError, ''];
                 continue;
             }
             foreach ($result->hits as $hit) {
@@ -282,6 +293,7 @@ final class ScanCommand extends Command
             ['Files with hits' => (string)$summary['filesWithHits']],
             ['Files fully ignored' => (string)$summary['filesIgnored']],
             ['Files with parse errors' => (string)$summary['filesWithParseErrors']],
+            ['Files with scan errors' => (string)$summary['filesWithScanErrors']],
             ['Total hits' => (string)$summary['hits']['total']],
         );
         if ($summary['hits']['byIndicator'] !== []) {

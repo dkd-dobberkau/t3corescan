@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace T3x\T3Corescan\Tests\Functional\Scanner;
 
 use T3x\T3Corescan\Scanner\ScannerAdapter;
+use T3x\T3Corescan\Tests\Functional\Fixtures\WarningMatcher;
 use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
@@ -86,5 +87,39 @@ final class ScannerAdapterTest extends FunctionalTestCase
         $result = $adapter->scanFile($fixture);
 
         self::assertTrue($result->isClean(), 'clean fixture must produce zero hits');
+    }
+
+    public function testWarningInAMatcherBecomesTheScanErrorOfThatFile(): void
+    {
+        $adapter = new ScannerAdapter([['class' => WarningMatcher::class, 'configurationArray' => []]]);
+        $fixture = dirname(__DIR__, 2) . '/Fixtures/CleanFile.php';
+
+        $result = $adapter->scanFile($fixture);
+
+        self::assertNull($result->parseError);
+        self::assertNotNull($result->scanError, 'the matcher warning must be reported, not swallowed');
+        self::assertStringContainsString('propertyNoNodeHas', $result->scanError);
+        self::assertSame([], $result->hits, 'hits of an aborted file are incomplete and must not be reported');
+        self::assertFalse($result->isClean());
+    }
+
+    /**
+     * Regression test against the Core itself. On a Core that still has the
+     * VariadicPlaceholder bug the file carries a scan error; on a fixed Core it
+     * scans clean. What must never happen is the exception escaping scanFile().
+     */
+    public function testStaticFirstClassCallableDoesNotEscapeAsException(): void
+    {
+        $adapter = new ScannerAdapter();
+        $fixture = dirname(__DIR__, 2) . '/Fixtures/ScanError/FirstClassCallable.php';
+
+        $result = $adapter->scanFile($fixture);
+
+        self::assertNull($result->parseError);
+        if ($result->scanError !== null) {
+            self::assertStringContainsString('VariadicPlaceholder', $result->scanError);
+        } else {
+            self::assertTrue($result->isClean());
+        }
     }
 }

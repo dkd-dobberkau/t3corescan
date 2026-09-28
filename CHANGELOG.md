@@ -39,6 +39,23 @@ All notable changes to this project are documented here. The format follows
   exit code useless as a gate. Use `--fail-on=any` for the previous behaviour.
 - `--no-fail` is kept as an alias for `--fail-on=none`.
 
+### Fixed
+
+- **A matcher that fails on one file no longer ends the run.** The Core matchers
+  are `@internal` and not hardened against every node type. In v14.3 and on main,
+  a static first-class callable such as `Foo::bar(...)` makes
+  `AbstractCoreMatcher::isArgumentUnpackingUsed()` read `$arg->unpack` on a
+  `PhpParser\Node\VariadicPlaceholder`, which has no such property
+  ([Forge #110828](https://forge.typo3.org/issues/110828)). Under the default `SYS/exceptionalErrors` that
+  warning became an exception and the command stopped at the first such file.
+  `ScannerAdapter::scanFile()` now turns warnings and notices from the matchers
+  into an exception, catches it and returns the file with a `scanError` and no
+  hits, because the hits of an aborted file are incomplete. The JSON output
+  carries `scanError` per file and `filesWithScanErrors` in the summary, the table
+  a `scan-error` row.
+- `ScannerAdapter` accepts an optional matcher registry, so the tests can inject a
+  failing matcher and do not depend on the Core still having this bug.
+
 ## [0.1.0] - 2026-05-28
 
 ### Added
