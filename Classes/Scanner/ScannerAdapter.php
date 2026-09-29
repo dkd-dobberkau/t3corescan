@@ -84,6 +84,14 @@ final class ScannerAdapter
         ['class' => ScalarStringMatcher::class, 'configurationFile' => 'EXT:install/Configuration/ExtensionScanner/Php/ScalarStringMatcher.php'],
     ];
 
+    /**
+     * @param list<array{class: class-string, configurationFile?: string, configurationArray?: array<mixed>}>|null $matchers
+     *        Matcher registry to run. Null means the Core registry above; tests pass their own.
+     */
+    public function __construct(
+        private readonly ?array $matchers = null,
+    ) {}
+
     public function scanFile(string $absoluteFilePath, ?string $projectRoot = null): FileScanResult
     {
         $relativeFilePath = $this->resolveRelative($absoluteFilePath, $projectRoot);
@@ -114,11 +122,40 @@ final class ScannerAdapter
         $statistics = new CodeStatistics();
         $traverser->addVisitor($statistics);
 
-        $matchers = (new MatcherFactory())->createAll(self::MATCHERS);
+        $matchers = (new MatcherFactory())->createAll($this->matchers ?? self::MATCHERS);
         foreach ($matchers as $matcher) {
             $traverser->addVisitor($matcher);
         }
-        $traverser->traverse($statements);
+
+        // A matcher that fails on one file must not end the whole run. The matchers
+        // are @internal Core code and not hardened against every node type: in
+        // v14.3 and on main a static first-class callable (`Foo::bar(...)`) makes
+        // AbstractCoreMatcher::isArgumentUnpackingUsed() read a property that
+        // PhpParser\Node\VariadicPlaceholder does not have. Whether that warning
+        // becomes an exception depends on SYS/exceptionalErrors, so warnings and
+        // notices are turned into one here. Either way the file's hits are
+        // incomplete, so none are reported and the file carries a scan error.
+        set_error_handler(
+            static function (int $severity, string $message, string $file, int $line): bool {
+                throw new \ErrorException($message, 0, $severity, $file, $line);
+            },
+            E_WARNING | E_NOTICE | E_USER_WARNING | E_USER_NOTICE,
+        );
+        try {
+            $traverser->traverse($statements);
+        } catch (\Throwable $e) {
+            return new FileScanResult(
+                absoluteFilePath: $absoluteFilePath,
+                relativeFilePath: $relativeFilePath,
+                hits: [],
+                isFileIgnored: false,
+                effectiveCodeLines: 0,
+                ignoredLines: 0,
+                scanError: sprintf('%s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()),
+            );
+        } finally {
+            restore_error_handler();
+        }
 
         $hits = [];
         foreach ($matchers as $matcher) {

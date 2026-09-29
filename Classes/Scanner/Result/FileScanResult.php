@@ -17,10 +17,11 @@ final class FileScanResult
         public readonly int $effectiveCodeLines,
         public readonly int $ignoredLines,
         public readonly ?string $parseError = null,
+        public readonly ?string $scanError = null,
     ) {}
 
     public function isClean(): bool
     {
-        return $this->hits === [] && $this->parseError === null;
+        return $this->hits === [] && $this->parseError === null && $this->scanError === null;
     }
 }
